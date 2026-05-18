@@ -1,0 +1,52 @@
+# docker-compose.dokploy.yml
+# Production compose for Dokploy using the custom Hermes + Claude Code image
+# from GitHub Container Registry.
+#
+# Replace pedrotecinf with your GitHub username if you forked to a different account.
+#
+# Required environment variables (set in Dokploy UI or .env):
+#   API_SERVER_KEY  — generate with: openssl rand -hex 32
+#   API keys go in /opt/data/.env (created on first boot from .env.example)
+
+services:
+  hermes:
+    image: ghcr.io/pedrotecinf/hermes-agent-claude:latest
+    container_name: hermes
+    restart: unless-stopped
+    volumes:
+      - hermes-data:/opt/data
+      - hermes-workspace:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - HERMES_HOME=/opt/data
+      - HERMES_CONFIG=/opt/data/config.yaml
+      # API server (health endpoint + OpenAI-compatible API on port 8642)
+      - API_SERVER_ENABLED=true
+      - API_SERVER_HOST=0.0.0.0
+      - API_SERVER_PORT=8642
+      - API_SERVER_KEY=${API_SERVER_KEY}
+      # Built-in dashboard side-process (web UI + in-browser TUI chat on port 9119)
+      - HERMES_DASHBOARD=1
+      - HERMES_DASHBOARD_HOST=0.0.0.0
+      - HERMES_DASHBOARD_PORT=9119
+      - HERMES_DASHBOARD_TUI=1
+    ports:
+      - "8642:8642"   # Gateway API + health
+      - "9119:9119"   # Dashboard
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8642/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    command: ["gateway", "run"]
+    networks:
+      - dokploy-network
+
+volumes:
+  hermes-data:
+  hermes-workspace:
+
+networks:
+  dokploy-network:
+    external: true

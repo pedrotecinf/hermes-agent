@@ -1,0 +1,17 @@
+# Derivative image: Hermes Agent + Claude Code CLI
+# Inherits everything from the official Hermes image and adds the
+# Anthropic Claude Code CLI so it's available at runtime without
+# any runtime installation step.
+
+ARG HERMES_VERSION=latest
+FROM nousresearch/hermes-agent:${HERMES_VERSION}
+
+# Install Claude Code CLI during build (running as root).
+# The base image already provides nodejs + npm from Debian trixie.
+RUN npm install -g --no-fund --no-audit @anthropic-ai/claude-code \
+    && npm cache clean --force \
+    && claude --version
+
+# The base ENTRYPOINT, CMD, USER logic, and VOLUME are all inherited.
+# The entrypoint drops to the hermes user via gosu at runtime,
+# but /usr/local/bin (where npm -g installs) is world-readable.

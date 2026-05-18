@@ -187,6 +187,76 @@ scripts/run_tests.sh
 
 ---
 
+## Custom Docker Image: Hermes + Claude Code (GHCR)
+
+This fork publishes a derivative Docker image that bundles the
+[Anthropic Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) CLI
+on top of the official Hermes Agent image. Claude Code is installed during the build,
+not at runtime, so the container starts cleanly without any `npm install` at boot.
+
+**Image:** `ghcr.io/pedrotecinf/hermes-agent-claude:latest`
+
+### Why
+
+The official `nousresearch/hermes-agent` image drops privileges to a non-root user at
+runtime via `gosu`. Installing packages with `npm install -g` at runtime fails because
+the container loses write access to `/usr/local/lib/node_modules`. This image solves
+that by installing Claude Code during the Docker build (as root), before the privilege
+drop.
+
+### Build locally
+
+```bash
+docker build -f Dockerfile.claude -t hermes-agent-claude .
+```
+
+### Validate
+
+```bash
+docker run --rm hermes-agent-claude claude --version
+docker run --rm hermes-agent-claude command -v claude
+docker run --rm hermes-agent-claude hermes --help
+```
+
+### Use in Dokploy
+
+1. Create a **Compose** service in Dokploy.
+2. Paste the contents of `docker-compose.dokploy.yml` (or reference it).
+3. Set `HERMES_UID` and `HERMES_GID` to match the host user that owns the volume.
+4. API keys go in `/opt/data/.env` (created from `.env.example` on first boot).
+
+### Required environment variables
+
+Same as the official Hermes image — see `.env.example`. Key ones:
+
+| Variable | Purpose |
+|----------|---------|
+| `HERMES_UID` | Host UID for volume ownership (default `10000`) |
+| `HERMES_GID` | Host GID for volume ownership (default `10000`) |
+| `HERMES_DASHBOARD` | Set to `1` to start the web dashboard |
+| `HERMES_DASHBOARD_HOST` | Dashboard bind address (default `0.0.0.0`) |
+| `HERMES_DASHBOARD_PORT` | Dashboard port (default `9119`) |
+
+### GitHub Actions
+
+The workflow `.github/workflows/docker-publish-claude.yml` builds and publishes
+`linux/amd64` + `linux/arm64` to GHCR on:
+
+- Push to `main` (when `Dockerfile.claude` or the workflow itself changes)
+- Manual trigger via `workflow_dispatch`
+
+Tags published: `latest` + `sha-<short SHA>`.
+
+### Files added in this fork
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile.claude` | Derivative image with Claude Code pre-installed |
+| `.github/workflows/docker-publish-claude.yml` | GHCR build & publish workflow |
+| `docker-compose.dokploy.yml` | Production compose for Dokploy |
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
